@@ -313,3 +313,211 @@ plot_object <- plot_object +
 
 plot_object
 ```
+Genero
+```{r}
+# Contar y filtrar géneros (>10)
+genre <- musmental_limpio %>%
+  count(`Fav genre`) %>%
+  filter(n > 10)
+
+# Crear un vector de colores tipo "pastel"
+colors <- scales::hue_pal()(nrow(genre))
+
+# Gráfico de pastel
+ggplot(genre, aes(x = "", y = n, fill = `Fav genre`)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y") +
+  geom_text(aes(label = n),
+            position = position_stack(vjust = .5)) +
+  scale_fill_manual(values = colors) +
+  ggtitle("Proporción de los generos musicales mas votados") +
+  theme_void()
+```
+
+¿Cómo se distribuyen las calificaciones (rankings) de distintos trastornos de salud mental entre los participantes?
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Columnas de interés
+m_all <- c("Anxiety", "Depression", "Insomnia", "OCD")
+
+# Redondear y convertir a entero
+mental_df <- musmental_limpio %>%
+  select(all_of(m_all)) %>%
+  mutate(across(everything(), ~ as.integer(round(.))))
+
+# Convertir a formato largo
+long_df <- mental_df %>%
+  pivot_longer(cols = everything(),
+               names_to = "Trastorno",
+               values_to = "Puntuación")
+
+# Contar ocurrencias de cada ranking (0 a 10)
+counts <- long_df %>%
+  filter(Puntuación >= 0 & Puntuación <= 10) %>%   
+  count(Trastorno, Puntuación)                    
+
+# Asegurar valores 0–10
+counts <- counts %>%
+  complete(Trastorno, Puntuación = 0:10, fill = list(n = 0))
+
+# Gráfico
+ggplot(counts, aes(x = factor(Puntuación), y = n, fill = Trastorno)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+  scale_fill_manual(values = c(
+    "Anxiety" = "pink",
+    "Depression" = "blue",
+    "Insomnia" = "darkmagenta",
+    "OCD" = "orange"
+  )) +
+  labs(title = "Distribución de calificaciones en salud mental",
+       x = "Puntuación",
+       y = "Número de puntuaciones") +
+  coord_cartesian(ylim = c(0, 170)) +
+  theme_minimal()
+
+```
+
+```{r}
+musmental_limpio %>%
+  summarise(across(all_of(m_all),
+                   ~ round(mean(.x, na.rm = TRUE), 2))) %>%
+  pivot_longer(everything(),
+               names_to = "Disorder",
+               values_to = "Average")
+
+```
+Las puntuaciones elevadas en depresión y ansiedad son muy comunes, con promedios cercanos a 5 y 6, respectivamente. Además, entre cada nivel de puntuación, la popularidad tiende a seguir la misma tendencia; es decir, al pasar de una puntuación de 1 a 2, la frecuencia de estas aumenta tanto para ansiedad como para depresión.
+De manera interesante (aunque preocupante), es más probable que una persona asigne a la depresión una puntuación de 10 que de 0, lo que sugiere una mayor presencia de niveles altos en este trastorno.
+
+```{r}
+plot_df <- musmental_limpio %>%
+  pivot_longer(cols = c(Anxiety, Depression, Insomnia, OCD),
+               names_to = "Disorder",
+               values_to = "Score") %>%
+  filter(Score > 8) %>%
+  group_by(Disorder) %>%
+  summarise(Avg_hours = mean(`Hours per day`, na.rm = TRUE))
+
+ggplot(plot_df, aes(x = Avg_hours, y = Disorder, fill = Disorder)) +
+  geom_col() +
+  scale_fill_manual(values = c("lightpink", "cornflowerblue", "darkmagenta", "orange")) +
+  labs(title = "Horas de escucha de música en personas con niveles extremos de salud mental",
+       x = "Promedio de horas escuchadas",
+       y = "") +
+  coord_cartesian(xlim = c(3, 5.5)) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Agrupar por género favorito y calcular promedio de ansiedad
+anxiety_genre <- musmental_limpio %>%
+  group_by(`Fav genre`) %>%
+  summarise(
+    Avg_anxiety = mean(Anxiety, na.rm = TRUE),
+    count = n()
+  ) %>%
+  filter(count > 10) %>%          # filtrar géneros con pocos datos
+  arrange(desc(Avg_anxiety))
+
+anxiety_genre
+
+```
+## ¿Qué géneros musicales se asocian con mayores niveles de ansiedad?
+
+```{r}
+# ggplot(anxiety_genre,
+#        aes(x = reorder(`Fav genre`, Avg_anxiety), 
+#            y = Avg_anxiety)) +
+#   geom_col(fill = "mediumpurple") + 
+#   coord_flip() +
+#   labs(title = "Géneros asociados con mayores niveles de ansiedad",
+#        x = "Género musical",
+#        y = "Promedio de ansiedad") +
+#   theme_minimal()
+```
+```{r}
+ggplot(anxiety_genre,
+       aes(x = reorder(`Fav genre`, Avg_anxiety),
+           y = Avg_anxiety,
+           fill = Avg_anxiety)) +   
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lavender", high = "lightpink3") +
+  labs(title = "Géneros asociados con mayores niveles de ansiedad",
+       x = "Género musical",
+       y = "Promedio de ansiedad",
+       fill = "Ansiedad") +
+  theme_minimal()
+```
+
+## ¿Las personas con depresión extrema escuchan más música que otras?
+
+
+```{r}
+
+# Crear variable de grupo (extremo vs no extremo)
+df2 <- musmental_limpio%>%
+  mutate(
+    grupo = ifelse(Depression >= 9, "Depresión extrema", "Otros")
+  )
+
+# Calcular promedio de horas por grupo
+comparacion <- df2 %>%
+  group_by(grupo) %>%
+  summarise(
+    Avg_hours = mean(`Hours per day`, na.rm = TRUE)
+  )
+
+# Ver resultados
+comparacion
+```
+```{r}
+
+# Crear grupos de depresión más claros
+df2 <- musmental_limpio %>%
+  mutate(
+    grupo = case_when(
+      Depression >= 9 ~ "Extrema",
+      Depression >= 5 & Depression <= 8 ~ "Moderada",
+      Depression < 5 ~ "Baja"
+    )
+  )
+
+# Calcular promedio de horas escuchadas
+comparacion <- df2 %>%
+  group_by(grupo) %>%
+  summarise(
+    Avg_hours = mean(`Hours per day`, na.rm = TRUE)
+  )
+
+# Ver resultados
+comparacion
+```
+
+```{r}
+
+# Gráfica
+
+ggplot(comparacion, aes(x = grupo, y = Avg_hours, fill = grupo)) +
+  geom_col() +
+  scale_fill_manual(values = c(
+    "Baja" = "lavender",
+    "Moderada" = "pink",
+    "Extrema" = "lightpink3"
+  )) +
+  labs(
+    title = "Horas de escucha según nivel de depresión",
+    x = "Nivel de depresión",
+    y = "Promedio de horas escuchadas"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
